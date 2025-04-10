@@ -4,10 +4,10 @@ import { useState } from "react";
 import { trpc } from "../utils/trpc";
 const planetaryHours: NextPage = () => {
     const planetaryHours = trpc.planetary.get.useQuery({
-        coefficient: 6
+        coefficient: 1.5
       });
     
-      const [time, setTime] = useState<string>("15:55:25");
+      const [time, setTime] = useState<string>("13:55:45");
       const [isDay, setIsDay] = useState<boolean>(true);
     
       const todayDateOffset = new Date().getTimezoneOffset() * 60000;
@@ -18,15 +18,19 @@ const planetaryHours: NextPage = () => {
         time: time,
         isDay: isDay
       })
+
+      const updateInputValue = (evt: any) => {
+        const val = evt.target.value;
+        setTime(val);
+      }
     
       return (
         <div>
         <form>
             <label>
-              Time:
-              <input type="text" name="name" />
+              Time: 
+              <input type="textbox" name="name" defaultValue={time} onChange={evt => updateInputValue(evt)}/>
             </label>
-            <input type="submit" value="Submit" />
           </form>
           <div>{percentage.data?.percentage + "%"}</div>
           

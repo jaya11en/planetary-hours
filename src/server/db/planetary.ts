@@ -5,6 +5,9 @@ const todayDateOffset = new Date().getTimezoneOffset() * 60000;
 const todayDate = new Date();
 const today = (new Date(Date.now() - todayDateOffset)).toISOString().split('T')[0];
 
+// const latitude = '26.39636'
+// const longitude = ' -98.84492'
+
 const latitude = '29.435420'
 const longitude = '-98.660530'
 
@@ -58,14 +61,14 @@ function getTimes(names: string[], hours: Hour[], isDay: boolean, coefficient: n
     })
 
     return times.map((time: Hour) => {
-        const timesIntoSevenths = getTimesBySevenths(today, time.Start, time.End, isDay, coefficient);
+        const timesIntoSevenths = getTimesBySevenths(today, time.Start, time.End, coefficient);
         return {
             hour: time, times: [...timesIntoSevenths]
         }
     })
 }
 
-function getTimesBySevenths(date: string | undefined, start: string, end: string, isDay: boolean, coefficient: number) {
+function getTimesBySevenths(date: string | undefined, start: string, end: string, coefficient: number) {
     const startDate = new Date(date + "T" + start);
     const endDate = new Date(date + "T" + end);
 
@@ -75,33 +78,26 @@ function getTimesBySevenths(date: string | undefined, start: string, end: string
 
     const times: any[] = [];
     for (let i = 1; i <= 7; i++) {
-        const dateMiddle: Date = isDay ? new Date(startDate) : new Date(endDate);
+        const dateMiddle: Date = new Date(startDate) //: new Date(endDate);
         const dateBegin = new Date(dateMiddle);
-        const dateEnd = new Date(dateMiddle);
-        const dateCoefficientSolar = new Date(dateMiddle);
-        const dateCoefficientLunar = new Date(dateMiddle)
+        const dateCoefficient = new Date(dateMiddle)
 
         let style = `text-${colors[i-1]}-600`;
-        pushPercentages(dateBegin, time, i, 1/7, isDay, times, style + ' text-right');
-        //if(!isDay)  pushPercentages(dateCoefficientLunar, time, i, 1/7/2 + coefficient/100, isDay, times, style + ' italic');
-        if(!isDay && (i == 1 || i == 5 || i == 6 ))  pushPercentages(dateCoefficientLunar, time, i, 1/7/2 + coefficient/100, isDay, times, style + ' italic');
-        if(isDay && (i == 1 || i == 5 || i == 6)) pushPercentages(dateCoefficientSolar, time, i, 1/7 - coefficient/100, isDay, times, style + ' italic')
+        pushPercentages(dateBegin, time, i, 1/7, times, style + ' text-right');
+        pushPercentages(dateCoefficient, time, i, 1/7 - coefficient/100, times, style + ' italic');
         
-        pushPercentages(dateMiddle, time, i, 1/7/2, isDay, times, style + ' font-bold');
+        pushPercentages(dateMiddle, time, i, 1/7/2, times, style + ' font-bold');
 
-        if(!isDay && (i != 1 && i != 5 && i != 6))  pushPercentages(dateCoefficientLunar, time, i, .0001/7  + coefficient/100, isDay, times, style + ' italic');
-        if(isDay && (i != 1 && i != 5 && i != 6)) pushPercentages(dateCoefficientSolar, time, i, 1/7/2 - coefficient/100, isDay, times, style + ' italic');
-        //if(isDay) pushPercentages(dateCoefficientSolar, time, i, 1/7/2 - coefficient/100, isDay, times, style + ' italic');
-        //pushPercentages(dateEnd, time, i, 0, isDay, times);
+        //pushPercentages(dateCoefficient, time, i, 1/7/2 - coefficient/100, times, style + ' italic');
 
     }
 
-    return (isDay) ? times : times.reverse();
+    return  times;
     }
 
-function pushPercentages(date: Date, time: number, i: number, coefficient: number, isDay: boolean, times: any[], style: string) {
+function pushPercentages(date: Date, time: number, i: number, coefficient: number, times: any[], style: string) {
 
-    date.setSeconds(date.getSeconds() + (isDay ? (time * (i / 7 - coefficient )) : - (time * (i / 7 - coefficient))));
+    date.setSeconds(date.getSeconds() + (time * (i / 7 - coefficient )));
     const timeString = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric', second: 'numeric', hour12: true });
 
     times.push({
