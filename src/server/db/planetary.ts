@@ -5,24 +5,18 @@ const todayDateOffset = new Date().getTimezoneOffset() * 60000;
 const todayDate = new Date();
 const today = (new Date(Date.now() - todayDateOffset)).toISOString().split('T')[0];
 
-// const latitude = '26.39636'
-// const longitude = ' -98.84492'
+export async function getPlanetaryHours(coefficient: number, lat: number, long: number, useMidpointCoefficient: boolean = false) {
 
-const latitude = '29.435420'
-const longitude = '-98.660530'
+    const planetaryHours: PlanetaryHoursResponse = await axios.get(url + today + '/' + lat + ',' + long).then(r => r.data);
 
-export async function getPlanetaryHours(coefficient: number) {
-
-    const planetaryHours: PlanetaryHoursResponse = await axios.get(url + today + '/' + latitude + ',' + longitude).then(r => r.data);
-
-    const solarHours = getTimes(Object.keys(planetaryHours.Response.SolarHours), Object.values(planetaryHours.Response.SolarHours), true, coefficient, planetaryHours.Response.Lunar.NextSunrise);
-    const lunarHours = getTimes(Object.keys(planetaryHours.Response.LunarHours), Object.values(planetaryHours.Response.LunarHours), false, coefficient, planetaryHours.Response.Lunar.NextSunrise);
+    const solarHours = getTimes(Object.keys(planetaryHours.Response.SolarHours), Object.values(planetaryHours.Response.SolarHours), true, coefficient, planetaryHours.Response.Lunar.NextSunrise, useMidpointCoefficient);
+    const lunarHours = getTimes(Object.keys(planetaryHours.Response.LunarHours), Object.values(planetaryHours.Response.LunarHours), false, coefficient, planetaryHours.Response.Lunar.NextSunrise, useMidpointCoefficient);
 
     return Promise.all([...solarHours, ...lunarHours]);
 }
 
-export async function calculatePercentage(time: string, isDay: boolean) {
-    const planetaryHours: PlanetaryHoursResponse = await axios.get(url + today + '/' + latitude + ',' + longitude).then(r => r.data);
+export async function calculatePercentage(time: string, isDay: boolean, lat: number = 29.435420, long: number = -98.660530) {
+    const planetaryHours: PlanetaryHoursResponse = await axios.get(url + today + '/' + lat + ',' + long).then(r => r.data);
 
     const timeDate = new Date(today + "T" + time);
     if (!isDay && timeDate.getTime() <= new Date(today + "T" + planetaryHours.Response.Lunar.NextSunrise).getTime()) {
@@ -48,7 +42,7 @@ export async function calculatePercentage(time: string, isDay: boolean) {
     return Promise.resolve({ percentage: percentage.toFixed(2) })
 }
 
-function getTimes(names: string[], hours: Hour[], isDay: boolean, coefficient: number, nextSunrise: string) {
+function getTimes(names: string[], hours: Hour[], isDay: boolean, coefficient: number, nextSunrise: string, useMidpointCoefficient: boolean = false) {
     for (let i = 0; i < hours.length; i++) {
         hours[i].Name = names[i]?.split(/(?=[A-Z])/).join(" ");
     }
@@ -61,14 +55,14 @@ function getTimes(names: string[], hours: Hour[], isDay: boolean, coefficient: n
     })
 
     return times.map((time: Hour) => {
-        const timesIntoSevenths = getTimesBySevenths(today, time.Start, time.End, coefficient);
+        const timesIntoSevenths = getTimesBySevenths(today, time.Start, time.End, coefficient, useMidpointCoefficient);
         return {
             hour: time, times: [...timesIntoSevenths]
         }
     })
 }
 
-function getTimesBySevenths(date: string | undefined, start: string, end: string, coefficient: number) {
+function getTimesBySevenths(date: string | undefined, start: string, end: string, coefficient: number, useMidpointCoefficient: boolean = false) {
     const startDate = new Date(date + "T" + start);
     const endDate = new Date(date + "T" + end);
 
@@ -78,22 +72,25 @@ function getTimesBySevenths(date: string | undefined, start: string, end: string
 
     const times: any[] = [];
     for (let i = 1; i <= 7; i++) {
-        const dateMiddle: Date = new Date(startDate) //: new Date(endDate);
+        const dateMiddle: Date = new Date(startDate);
         const dateBegin = new Date(dateMiddle);
-        const dateCoefficient = new Date(dateMiddle)
+        const dateCoefficient = new Date(dateMiddle);
 
         let style = `text-${colors[i-1]}-600`;
         pushPercentages(dateBegin, time, i, 1/7, times, style + ' text-right');
-        pushPercentages(dateCoefficient, time, i, 1/7 - coefficient/100, times, style + ' italic');
-        
+        if (!useMidpointCoefficient) {
+            pushPercentages(dateCoefficient, time, i, 1/7 - coefficient/100, times, style + ' italic');  
+                }
         pushPercentages(dateMiddle, time, i, 1/7/2, times, style + ' font-bold');
+        if (useMidpointCoefficient) {
+            pushPercentages(dateCoefficient, time, i, 1/7/2 - coefficient/100, times, style + ' italic');
+                  
+        }
+    
+        }
 
-        //pushPercentages(dateCoefficient, time, i, 1/7/2 - coefficient/100, times, style + ' italic');
-
-    }
-
-    return  times;
-    }
+    return times;
+}
 
 function pushPercentages(date: Date, time: number, i: number, coefficient: number, times: any[], style: string) {
 
@@ -109,6 +106,7 @@ function pushPercentages(date: Date, time: number, i: number, coefficient: numbe
             style,
     });
 }
+
 interface PlanetaryHoursResponse {
     Response: Response
 }

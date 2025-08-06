@@ -3,13 +3,23 @@ import { getPlanetaryHours, calculatePercentage } from '../../db/planetary';
 import {z} from 'zod';
 export const planetaryRouter = router({
     get: publicProcedure
-        .input(z.object({coefficient: z.number()}))
+        .input(z.object({
+            coefficient: z.number(),
+            latitude: z.number(),
+            longitude: z.number(),
+            useMidpointCoefficient: z.boolean().optional().default(false),
+        }))
         .query(async ({ input }) => {
-            return getPlanetaryHours(input.coefficient);
+            return getPlanetaryHours(input.coefficient, input.latitude, input.longitude, input.useMidpointCoefficient);
         }),
     getPercentage: publicProcedure
-        .input(z.object({ time: z.string(), isDay: z.boolean() }))
+        .input(z.object({ 
+            time: z.string(), 
+            isDay: z.boolean(),
+            latitude: z.number(),
+            longitude: z.number(),
+        }))
         .query(async ({ input }) => {
-            return await calculatePercentage(input.time, input.isDay);
+            return await calculatePercentage(input.time, input.isDay, input.latitude, input.longitude);
         }),
   });
