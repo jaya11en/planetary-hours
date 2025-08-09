@@ -1,3 +1,31 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.text-sun {
+    color: #FFD700; /* Gold (already pastel-ish) */
+}
+
+.text-moon {
+    color: #CCCCFF; /* Pastel Violet */
+}
+
+.text-mercury {
+    color: #FFDAB9; /* Pastel Orange (Peach) */
+}
+
+.text-venus {
+    color: #A7D9F0; /* Pastel Light Blue */
+}
+
+.text-mars {
+    color: #FFB6C1; /* Pastel Red (LightPink) */
+}
+
+.text-jupiter {
+    color: #B19CD9; /* Pastel Purple */
+}
+
+.text-saturn {
+    color: #FF9AA2; /* Pastel Strawberry */
+}
