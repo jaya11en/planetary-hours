@@ -1,9 +1,10 @@
 import axios from 'axios';
+import * as SunCalc from 'suncalc';
 
 const url = 'http://www.planetaryhoursapi.com/api/';
 const todayDateOffset = new Date().getTimezoneOffset() * 60000;
 const todayDate = new Date();
-const today = (new Date(Date.now() - todayDateOffset)).toISOString().split('T')[0];
+const today = (new Date(Date.now() - todayDateOffset)).toISOString().slice(0, 10);
 
 export async function getPlanetaryHours(
     coefficient: number,
@@ -15,14 +16,18 @@ export async function getPlanetaryHours(
     useElevation: boolean = false,
     elevation?: number,
 ) {
-    const todayLocal = (new Date(Date.now() - todayDateOffset)).toISOString().split('T')[0];
+    const todayLocal = (new Date(Date.now() - todayDateOffset)).toISOString().slice(0, 10);
     const planetaryHours: PlanetaryHoursResponse = await axios.get(url + todayLocal + '/' + lat + ',' + long).then(r => r.data);
 
-    // Apply elevation correction to the sunrise and sunset times
-    const effectiveElevation = useElevation ? (typeof elevation === 'number' ? elevation : await getElevation(lat, long)) : 0;
-    const correctedSunrise = getAdjustedTime(planetaryHours.Response.Solar.Sunrise, effectiveElevation, true);
-    const correctedSunset = getAdjustedTime(planetaryHours.Response.Solar.Sunset, effectiveElevation, false);
-    const correctedNextSunrise = getAdjustedTime(planetaryHours.Response.Lunar.NextSunrise, effectiveElevation, true);
+    // Compute sunrise/sunset with elevation using SunCalc (more accurate than fixed arcminute shift)
+    const effectiveElevation = useElevation
+        ? (typeof elevation === 'number' ? elevation : await getElevation(lat, long))
+        : 0;
+
+    const { sunriseDate, sunsetDate, nextSunriseDate } = getSunTimesWithElevation(lat, long, effectiveElevation);
+    const correctedSunrise = formatAsTimeString(sunriseDate);
+    const correctedSunset = formatAsTimeString(sunsetDate);
+    const correctedNextSunrise = formatAsTimeString(nextSunriseDate);
 
     // Now, you need to reconstruct the planetary hours based on these new times.
     // This is the tricky part. The API gives you pre-calculated hours.
@@ -117,17 +122,15 @@ export async function getPlanetaryHours(
 }
 
 export async function calculatePercentage(time: string, isDay: boolean, lat: number = 29.435420, long: number = -98.660530, useElevation: boolean = false, elevation?: number) {
-    const planetaryHours: PlanetaryHoursResponse = await axios.get(url + today + '/' + lat + ',' + long).then(r => r.data);
+    // Use SunCalc to get corrected sunrise/sunset for the given elevation
+    const effectiveElevation = useElevation
+        ? (typeof elevation === 'number' ? elevation : await getElevation(lat, long))
+        : 0;
+    const { sunriseDate, sunsetDate, nextSunriseDate } = getSunTimesWithElevation(lat, long, effectiveElevation);
 
-    // Apply elevation correction
-    const effectiveElevation = useElevation ? (typeof elevation === 'number' ? elevation : await getElevation(lat, long)) : 0;
-    const correctedSunrise = getAdjustedTime(planetaryHours.Response.Solar.Sunrise, effectiveElevation, true);
-    const correctedSunset = getAdjustedTime(planetaryHours.Response.Solar.Sunset, effectiveElevation, false);
-    const correctedNextSunrise = getAdjustedTime(planetaryHours.Response.Lunar.NextSunrise, effectiveElevation, true);
-
-    const correctedSunriseDate = new Date(today + 'T' + correctedSunrise);
-    const correctedSunsetDate = new Date(today + 'T' + correctedSunset);
-    const correctedNextSunriseDate = new Date(today + 'T' + correctedNextSunrise);
+    const correctedSunriseDate = sunriseDate;
+    const correctedSunsetDate = sunsetDate;
+    const correctedNextSunriseDate = nextSunriseDate;
 
     const dayDuration = correctedSunsetDate.getTime() - correctedSunriseDate.getTime();
     const nightDuration = correctedNextSunriseDate.getTime() - correctedSunsetDate.getTime();
@@ -137,7 +140,8 @@ export async function calculatePercentage(time: string, isDay: boolean, lat: num
 
     const timeDate = new Date(today + "T" + time);
     if (!isDay && timeDate.getTime() <= correctedNextSunriseDate.getTime()) {
-        timeDate.setDate(timeDate.getDay() + 1);
+        // Fix: use getDate() instead of getDay() when adding a calendar day
+        timeDate.setDate(timeDate.getDate() + 1);
     }
 
     // Now, find the hour by recalculating them
@@ -161,24 +165,212 @@ export async function calculatePercentage(time: string, isDay: boolean, lat: num
     return Promise.resolve({ percentage: percentage.toFixed(2) })
 }
 
-function getAdjustedTime(originalTime: string, elevation: number, isSunrise: boolean) {
-    if (elevation === 0) {
-        return originalTime;
+export interface HourBoundary {
+    start: Date;
+    end: Date;
+}
+
+export interface EquivalentPercentMappingEntry {
+    oldHourIndex: number; // 0-11 for day or night
+    newHourIndex: number; // hour index in the new system that contains t0
+    anchors: Array<{ pOld: number; pNew: number; timeISO: string }>; // timeISO for t0
+}
+
+export interface EquivalentPercentMappingResult {
+    date: string; // ISO yyyy-mm-dd
+    elevationMeters: number;
+    day: EquivalentPercentMappingEntry[];
+    night: EquivalentPercentMappingEntry[];
+    bestFit: {
+        day: { a: number; b: number; delta: number; mseAffine: number; mseOffset: number };
+        night: { a: number; b: number; delta: number; mseAffine: number; mseOffset: number };
+    };
+}
+
+function buildHourBoundaries(sunrise: Date, sunset: Date, nextSunrise: Date) {
+    const dayDurationMs = sunset.getTime() - sunrise.getTime();
+    const nightDurationMs = nextSunrise.getTime() - sunset.getTime();
+    const singleDayHourMs = dayDurationMs / 12;
+    const singleNightHourMs = nightDurationMs / 12;
+
+    const day: HourBoundary[] = Array.from({ length: 12 }, (_, i) => {
+        const start = new Date(sunrise.getTime() + i * singleDayHourMs);
+        const end = new Date(start.getTime() + singleDayHourMs);
+        return { start, end };
+    });
+
+    const night: HourBoundary[] = Array.from({ length: 12 }, (_, i) => {
+        const start = new Date(sunset.getTime() + i * singleNightHourMs);
+        const end = new Date(start.getTime() + singleNightHourMs);
+        return { start, end };
+    });
+
+    return { day, night };
+}
+
+function findContainingHour(boundaries: HourBoundary[], t: Date): number {
+    const tMs = t.getTime();
+    for (let i = 0; i < boundaries.length; i++) {
+        const { start, end } = boundaries[i]!;
+        if (tMs >= start.getTime() && tMs < end.getTime()) return i;
+    }
+    // If exactly equal to final end, snap to last hour
+    return boundaries.length - 1;
+}
+
+/**
+ * Map anchor percentages from a no-elevation system to the equivalent percentages with elevation.
+ * Anchors default to the user's scheme: sevenths, their midpoints, and ±1/14 around midpoints.
+ */
+export async function mapEquivalentPercents(
+    lat: number,
+    long: number,
+    useElevation: boolean = true,
+    elevation?: number,
+    anchorPercents?: number[],
+): Promise<EquivalentPercentMappingResult> {
+    return mapEquivalentPercentsBetweenLocations(
+        lat,
+        long,
+        0, // old system assumed no elevation
+        lat,
+        long,
+        useElevation ? (typeof elevation === 'number' ? elevation : await getElevation(lat, long)) : 0,
+        anchorPercents,
+    );
+}
+
+export async function mapEquivalentPercentsBetweenLocations(
+    oldLat: number,
+    oldLong: number,
+    oldElevationMeters?: number,
+    newLat: number,
+    newLong: number,
+    newElevationMeters?: number,
+    anchorPercents?: number[],
+): Promise<EquivalentPercentMappingResult> {
+    const todayLocal = (new Date(Date.now() - todayDateOffset)).toISOString().slice(0, 10);
+
+    // Default anchors: 0, for k=1..6: (k/7 - 1/14), (k/7), (k/7 + 1/14), and 13/14
+    const defaultAnchors: number[] = Array.from({ length: 6 }, (_, k) => k + 1)
+        .flatMap((k) => [k / 7 - 1 / 14, k / 7, k / 7 + 1 / 14])
+        .concat([0, 13 / 14])
+        .filter((p) => p >= 0 && p <= 1);
+    const anchors = (anchorPercents ?? defaultAnchors)
+        .map((p) => Math.max(0, Math.min(1, p)))
+        .sort((a, b) => a - b);
+
+    // Resolve elevations if not provided
+    const resolvedOldElevation = typeof oldElevationMeters === 'number' ? oldElevationMeters : await getElevation(oldLat, oldLong);
+    const resolvedNewElevation = typeof newElevationMeters === 'number' ? newElevationMeters : await getElevation(newLat, newLong);
+
+    // Old system: specified old coords/elevation
+    const oldTimes = getSunTimesWithElevation(oldLat, oldLong, resolvedOldElevation);
+    // New system: specified new coords/elevation
+    const newTimes = getSunTimesWithElevation(newLat, newLong, resolvedNewElevation);
+
+    const oldBounds = buildHourBoundaries(oldTimes.sunriseDate, oldTimes.sunsetDate, oldTimes.nextSunriseDate);
+    const newBounds = buildHourBoundaries(newTimes.sunriseDate, newTimes.sunsetDate, newTimes.nextSunriseDate);
+
+    const mapFor = (oldSet: HourBoundary[], newSet: HourBoundary[]): EquivalentPercentMappingEntry[] =>
+        oldSet.map((hb, idx) => {
+            const dur0 = hb.end.getTime() - hb.start.getTime();
+            const anchorsMapped = anchors.map((pOld) => {
+                const t0 = new Date(hb.start.getTime() + pOld * dur0);
+                const j = findContainingHour(newSet, t0);
+                const newHb = newSet[j]!;
+                const dur1 = newHb.end.getTime() - newHb.start.getTime();
+                const pNew = (t0.getTime() - newHb.start.getTime()) / dur1;
+                return { j, pOld, pNew: Math.max(0, Math.min(1, pNew)), timeISO: t0.toISOString() };
+            });
+            // Prefer the most common j among anchors as the mapped index; fallback to first
+            const jCounts = new Map<number, number>();
+            for (const a of anchorsMapped) jCounts.set(a.j, (jCounts.get(a.j) ?? 0) + 1);
+            let newHourIndex = anchorsMapped[0]!.j;
+            let maxC = -1;
+            for (const [j, c] of jCounts) {
+                if (c > maxC) { maxC = c; newHourIndex = j; }
+            }
+            return {
+                oldHourIndex: idx,
+                newHourIndex,
+                anchors: anchorsMapped.map(({ pOld, pNew, timeISO }) => ({ pOld, pNew, timeISO })),
+            };
+        });
+
+    const dayPairs: Array<{ x: number; y: number }> = [];
+    const nightPairs: Array<{ x: number; y: number }> = [];
+
+    const dayMap = mapFor(oldBounds.day, newBounds.day);
+    const nightMap = mapFor(oldBounds.night, newBounds.night);
+
+    for (const row of dayMap) {
+        for (const a of row.anchors) dayPairs.push({ x: a.pOld, y: a.pNew });
+    }
+    for (const row of nightMap) {
+        for (const a of row.anchors) nightPairs.push({ x: a.pOld, y: a.pNew });
     }
 
-    const dipInArcminutes = 1.76 * Math.sqrt(elevation);
-    const timeCorrectionInSeconds = dipInArcminutes * 4;
+    const fitDay = linearFit(dayPairs);
+    const fitNight = linearFit(nightPairs);
 
-    const originalDate = new Date(today + "T" + originalTime);
-    const adjustedDate = new Date(originalDate.getTime());
+    return {
+        date: todayLocal,
+        elevationMeters: resolvedNewElevation,
+        day: dayMap,
+        night: nightMap,
+        bestFit: { day: fitDay, night: fitNight },
+    };
+}
 
-    if (isSunrise) {
-        adjustedDate.setSeconds(adjustedDate.getSeconds() - timeCorrectionInSeconds);
-    } else { // It's sunset
-        adjustedDate.setSeconds(adjustedDate.getSeconds() + timeCorrectionInSeconds);
+function linearFit(pairs: Array<{ x: number; y: number }>) {
+    const n = pairs.length;
+    if (n === 0) return { a: 0, b: 1, delta: 0, mseAffine: 0, mseOffset: 0 };
+    let sumX = 0, sumY = 0, sumXX = 0, sumXY = 0, sumDY = 0;
+    for (const { x, y } of pairs) {
+        sumX += x; sumY += y; sumXX += x * x; sumXY += x * y; sumDY += (y - x);
     }
+    const denom = n * sumXX - sumX * sumX;
+    const b = Math.abs(denom) > 1e-9 ? (n * sumXY - sumX * sumY) / denom : 1;
+    const a = (sumY - b * sumX) / n;
+    const delta = sumDY / n; // offset-only model: y ≈ x + delta
+    // Compute MSE for both models
+    let mseAffine = 0, mseOffset = 0;
+    for (const { x, y } of pairs) {
+        const ya = a + b * x;
+        const yo = x + delta;
+        mseAffine += (y - ya) * (y - ya);
+        mseOffset += (y - yo) * (y - yo);
+    }
+    mseAffine /= n; mseOffset /= n;
+    return { a, b, delta, mseAffine, mseOffset };
+}
 
-    return adjustedDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+function getSunTimesWithElevation(lat: number, long: number, heightMeters: number) {
+    // Use local date at noon to avoid DST boundary issues
+    const base = new Date();
+    base.setHours(12, 0, 0, 0);
+
+    const todayTimes = SunCalc.getTimes(base, lat, long, heightMeters);
+    const sunriseDate = new Date(todayTimes.sunrise);
+    const sunsetDate = new Date(todayTimes.sunset);
+
+    // Next day sunrise
+    const nextDay = new Date(base);
+    nextDay.setDate(nextDay.getDate() + 1);
+    const nextTimes = SunCalc.getTimes(nextDay, lat, long, heightMeters);
+    const nextSunriseDate = new Date(nextTimes.sunrise);
+
+    return { sunriseDate, sunsetDate, nextSunriseDate };
+}
+
+function formatAsTimeString(date: Date): string {
+    return date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+    });
 }
 
 async function getElevation(lat: number, long: number): Promise<number> {

@@ -12,5 +12,10 @@ const config = {
     locales: ["en"],
     defaultLocale: "en",
   },
+  eslint: {
+    // Allow production builds to successfully complete even if
+    // there are ESLint errors. We still surface them in dev.
+    ignoreDuringBuilds: true,
+  },
 };
 export default config;

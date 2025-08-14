@@ -1,5 +1,5 @@
 import { router, publicProcedure } from "../trpc";
-import { getPlanetaryHours, calculatePercentage } from '../../db/planetary';
+import { getPlanetaryHours, calculatePercentage, mapEquivalentPercents, mapEquivalentPercentsBetweenLocations } from '../../db/planetary';
 import {z} from 'zod';
 export const planetaryRouter = router({
     get: publicProcedure
@@ -38,3 +38,44 @@ export const planetaryRouter = router({
             return await calculatePercentage(input.time, input.isDay, input.latitude, input.longitude, input.useElevation, input.elevation);
         }),
   });
+  
+export const mappingRouter = router({
+    mapPercents: publicProcedure
+      .input(z.object({
+        latitude: z.number(),
+        longitude: z.number(),
+        useElevation: z.boolean().optional().default(true),
+        elevation: z.number().optional(),
+        anchorPercents: z.array(z.number()).optional(), // values in 0..1
+      }))
+      .query(async ({ input }) => {
+        return await mapEquivalentPercents(
+          input.latitude,
+          input.longitude,
+          input.useElevation,
+          input.elevation,
+          input.anchorPercents,
+        );
+      }),
+    mapPercentsBetweenLocations: publicProcedure
+      .input(z.object({
+        oldLatitude: z.number(),
+        oldLongitude: z.number(),
+        oldElevation: z.number().optional().default(0),
+        newLatitude: z.number(),
+        newLongitude: z.number(),
+        newElevation: z.number().optional().default(0),
+        anchorPercents: z.array(z.number()).optional(),
+      }))
+      .query(async ({ input }) => {
+        return await mapEquivalentPercentsBetweenLocations(
+          input.oldLatitude,
+          input.oldLongitude,
+          input.oldElevation,
+          input.newLatitude,
+          input.newLongitude,
+          input.newElevation,
+          input.anchorPercents,
+        );
+      }),
+});

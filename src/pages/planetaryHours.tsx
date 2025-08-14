@@ -18,6 +18,8 @@ const PlanetaryHours: NextPage = () => {
     const [locationError, setLocationError] = useState<string>("");
     const [useMidpointCoefficient, setUseMidpointCoefficient] = useState<boolean>(false);
     const [useGeolocation, setUseGeolocation] = useState<boolean>(true);
+    const [showMapping, setShowMapping] = useState<boolean>(false);
+    const [applyCalibration, setApplyCalibration] = useState<boolean>(false);
     const [isLocating, setIsLocating] = useState<boolean>(false);
 
     useEffect(() => {
@@ -94,6 +96,21 @@ const PlanetaryHours: NextPage = () => {
         elevation: useElevation ? elevation : undefined,
     });
 
+    // Equivalent percent mapping (old system: no elevation) -> (current system: with elevation)
+    const anchorPercents = [
+        0.00, 0.015, 0.0714, 0.1429, 0.1579, 0.2143, 0.2857, 0.3007,
+        0.3571, 0.4286, 0.4436, 0.5, 0.5714, 0.5864, 0.6429, 0.7143,
+        0.7293, 0.7857, 0.8571, 0.8721, 0.9286,
+    ];
+
+    const mapping = trpc.mapping.mapPercents.useQuery({
+        latitude: latitude,
+        longitude: longitude,
+        useElevation: useElevation,
+        elevation: useElevation ? elevation : undefined,
+        anchorPercents,
+    }, { enabled: showMapping || applyCalibration });
+
     return (
         <div className="bg-gray-900 text-white min-h-screen">
             <div className="container mx-auto px-4 py-8">
@@ -127,11 +144,72 @@ const PlanetaryHours: NextPage = () => {
                     setElevation={setElevation}
                 />
 
+                <div className="mb-6">
+                    <button
+                        className="px-4 py-2 rounded bg-gray-700 hover:bg-gray-600"
+                        onClick={() => setShowMapping((v) => !v)}
+                    >
+                        {showMapping ? 'Hide' : 'Show'} equivalent percent mapping
+                    </button>
+                    <button
+                        className="ml-3 px-4 py-2 rounded bg-gray-700 hover:bg-gray-600"
+                        onClick={() => setApplyCalibration((v) => !v)}
+                    >
+                        {applyCalibration ? 'Stop applying' : 'Apply'} calibration to cards
+                    </button>
+                    {showMapping && (
+                        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-gray-800 rounded p-4 overflow-auto">
+                                <h3 className="font-semibold mb-2">Day hours (old → new %)</h3>
+                                {mapping.data ? (
+                                    <ul className="space-y-2 text-sm">
+                                        {mapping.data.day.map((row: any) => (
+                                            <li key={`day-${row.oldHourIndex}`}>
+                                                <span className="font-mono">Hour {row.oldHourIndex + 1} → {row.newHourIndex + 1}:</span>
+                                                <span className="ml-2 font-mono">
+                                                    {row.anchors
+                                                        .map((a: any) => `${(a.pOld * 100).toFixed(2)}%→${(a.pNew * 100).toFixed(2)}%`)
+                                                        .join('  |  ')}
+                                                </span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <p className="text-gray-400">{mapping.isLoading ? 'Loading…' : 'No data'}</p>
+                                )}
+                            </div>
+                            <div className="bg-gray-800 rounded p-4 overflow-auto">
+                                <h3 className="font-semibold mb-2">Night hours (old → new %)</h3>
+                                {mapping.data ? (
+                                    <ul className="space-y-2 text-sm">
+                                        {mapping.data.night.map((row: any) => (
+                                            <li key={`night-${row.oldHourIndex}`}>
+                                                <span className="font-mono">Hour {row.oldHourIndex + 1} → {row.newHourIndex + 1}:</span>
+                                                <span className="ml-2 font-mono">
+                                                    {row.anchors
+                                                        .map((a: any) => `${(a.pOld * 100).toFixed(2)}%→${(a.pNew * 100).toFixed(2)}%`)
+                                                        .join('  |  ')}
+                                                </span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <p className="text-gray-400">{mapping.isLoading ? 'Loading…' : 'No data'}</p>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {planetaryHours.data?.map((planetaryHour: any, index: number) => (
                         <PlanetaryHourCard 
                             planetaryHour={planetaryHour} 
                             today={today} 
+                            isDay={index < 12}
+                            applyCalibration={applyCalibration}
+                            calibration={mapping.data?.bestFit}
+                            anchorPercents={anchorPercents}
                             key={`${planetaryHour.hour?.Name || 'hour'}-${index}`} 
                         />
                     ))}

@@ -10,9 +10,13 @@ import SaturnIcon from './icons/SaturnIcon';
 interface PlanetaryHourCardProps {
     planetaryHour: any;
     today: string;
+    isDay?: boolean;
+    applyCalibration?: boolean;
+    calibration?: { day: { a: number; b: number; delta: number; mseAffine: number; mseOffset: number }, night: { a: number; b: number; delta: number; mseAffine: number; mseOffset: number } };
+    anchorPercents?: number[];
 }
 
-const PlanetaryHourCard: React.FC<PlanetaryHourCardProps> = ({ planetaryHour, today }) => {
+const PlanetaryHourCard: React.FC<PlanetaryHourCardProps> = ({ planetaryHour, today, isDay = true, applyCalibration = false, calibration, anchorPercents }) => {
     const getPlanetIcon = (ruler: string) => {
         switch (ruler) {
             case 'Sun':
@@ -45,11 +49,34 @@ const PlanetaryHourCard: React.FC<PlanetaryHourCardProps> = ({ planetaryHour, to
                     {new Date(today + "T" + planetaryHour.hour.Start).toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true })} - {new Date(today + "T" + planetaryHour.hour.End).toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true })}
                 </p>
                 <div>
-                    {planetaryHour.times.map((time: any) => (
-                        <p className={`text-base ${time.style}`} key={time.percent}>
-                            {time.percent}: {time.time}
-                        </p>
-                    ))}
+                    {planetaryHour.times.map((time: any) => {
+                        if (!applyCalibration || !calibration) {
+                            return (
+                                <p className={`text-base ${time.style}`} key={time.percent}>
+                                    {time.percent}: {time.time}
+                                </p>
+                            );
+                        }
+                        // Parse percent like "15.79%"
+                        const match = typeof time.percent === 'string' ? time.percent.match(/([\d.]+)%/) : null;
+                        const pOld = match ? parseFloat(match[1]) / 100 : undefined;
+                        if (pOld === undefined || Number.isNaN(pOld)) {
+                            return (
+                                <p className={`text-base ${time.style}`} key={time.percent}>
+                                    {time.percent}: {time.time}
+                                </p>
+                            );
+                        }
+                        const fit = isDay ? calibration.day : calibration.night;
+                        // Uniform offset mode: always apply delta relative to identity
+                        const pNew = pOld + fit.delta;
+                        const pNewPct = (Math.max(0, Math.min(1, pNew)) * 100).toFixed(2) + '%';
+                        return (
+                            <p className={`text-base ${time.style}`} key={time.percent}>
+                                {time.percent} → {pNewPct}: {time.time}
+                            </p>
+                        );
+                    })}
                 </div>
             </div>
         </div>
