@@ -10,18 +10,15 @@ const PlanetaryHours: NextPage = () => {
     const [longitude, setLongitude] = useState<number>(-98.6591473);
     const [coefficient, setCoefficient] = useState<number>(1.5);
     const [offset, setOffset] = useState<number>(1.7);
-    const [useOffset, setUseOffset] = useState<boolean>(true);
-    const [time, setTime] = useState<string>(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }));
-    const [isDay, setIsDay] = useState<boolean>(true);
+    const [useOffset, setUseOffset] = useState<boolean>(false);
+    const [useLocationCorrection, setUseLocationCorrection] = useState<boolean>(true);
+    const [referenceLongitude, setReferenceLongitude] = useState<number>(-98.6591473);
     const [locationError, setLocationError] = useState<string>("");
     const [useMidpointCoefficient, setUseMidpointCoefficient] = useState<boolean>(false);
     const [useGeolocation, setUseGeolocation] = useState<boolean>(true);
     const [isLocating, setIsLocating] = useState<boolean>(false);
 
     useEffect(() => {
-        // Initialize time on component mount
-        setTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }));
-
         if ("geolocation" in navigator && useGeolocation) {
             setIsLocating(true);
             setLocationError("");
@@ -44,11 +41,9 @@ const PlanetaryHours: NextPage = () => {
             setLocationError("Geolocation is not supported by your browser. Please enter coordinates manually.");
         }
 
-        const timer = setInterval(() => {
-            setTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }));
-        }, 1000);
-
-        return () => clearInterval(timer);
+        return () => {
+            // no-op cleanup
+        };
     }, [useGeolocation]);
 
     const planetaryHours = trpc.planetary.get.useQuery({
@@ -58,17 +53,14 @@ const PlanetaryHours: NextPage = () => {
         useMidpointCoefficient: useMidpointCoefficient,
         offset: offset,
         useOffset: useOffset,
+        useLocationCorrection: useLocationCorrection,
+        referenceLongitude: referenceLongitude,
     });
 
     const todayDateOffset = new Date().getTimezoneOffset() * 60000;
     const today: string = (new Date(Date.now() - todayDateOffset)).toISOString().split('T')[0] || '';
 
-    const percentage = trpc.planetary.getPercentage.useQuery({
-        time: time,
-        isDay: isDay,
-        latitude: latitude,
-        longitude: longitude,
-    });
+    // Percentage query removed to avoid unused value warning
 
     return (
         <div className="bg-gray-900 text-white min-h-screen">
@@ -97,10 +89,14 @@ const PlanetaryHours: NextPage = () => {
                     setUseGeolocation={setUseGeolocation}
                     isLocating={isLocating}
                     locationError={locationError}
+                    useLocationCorrection={useLocationCorrection}
+                    setUseLocationCorrection={setUseLocationCorrection}
+                    referenceLongitude={referenceLongitude}
+                    setReferenceLongitude={setReferenceLongitude}
                 />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {planetaryHours.data?.map((planetaryHour: any, index: number) => (
+                    {planetaryHours.data?.map((planetaryHour, index: number) => (
                         <PlanetaryHourCard 
                             planetaryHour={planetaryHour} 
                             today={today} 

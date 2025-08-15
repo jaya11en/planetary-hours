@@ -1,9 +1,16 @@
 import React from 'react';
 
 const SunIcon: React.FC = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="8"></circle>
-    <circle cx="12" cy="12" r="3" fill="currentColor"></circle>
+  <svg width="40" height="40" viewBox="0 0 40 40" aria-label="Sun" role="img">
+    <text
+      x="50%"
+      y="50%"
+      textAnchor="middle"
+      dominantBaseline="central"
+      fontSize="36"
+      fontWeight="700"
+      fill="currentColor"
+    >☉</text>
   </svg>
 );
 

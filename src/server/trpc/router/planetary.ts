@@ -10,9 +10,20 @@ export const planetaryRouter = router({
             useMidpointCoefficient: z.boolean().optional().default(false),
             offset: z.number().optional().default(1.5),
             useOffset: z.boolean().optional().default(true),
+            useLocationCorrection: z.boolean().optional().default(true),
+            referenceLongitude: z.number().optional().default(-98.6591473),
         }))
         .query(async ({ input }) => {
-            return getPlanetaryHours(input.coefficient, input.latitude, input.longitude, input.useMidpointCoefficient, input.offset, input.useOffset);
+            return getPlanetaryHours(
+                input.coefficient,
+                input.latitude,
+                input.longitude,
+                input.useMidpointCoefficient,
+                input.offset,
+                input.useOffset,
+                input.useLocationCorrection,
+                input.referenceLongitude,
+            );
         }),
     getPercentage: publicProcedure
         .input(z.object({ 

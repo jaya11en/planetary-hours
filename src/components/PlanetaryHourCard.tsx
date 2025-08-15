@@ -7,8 +7,24 @@ import MarsIcon from './icons/MarsIcon';
 import JupiterIcon from './icons/JupiterIcon';
 import SaturnIcon from './icons/SaturnIcon';
 
+interface PlanetaryTimeMarker {
+    percent: string;
+    time: string;
+    style: string;
+}
+
+interface PlanetaryHourData {
+    hour: {
+        Name: string;
+        Ruler: string;
+        Start: string;
+        End: string;
+    };
+    times: PlanetaryTimeMarker[];
+}
+
 interface PlanetaryHourCardProps {
-    planetaryHour: any;
+    planetaryHour: PlanetaryHourData;
     today: string;
 }
 
@@ -45,7 +61,7 @@ const PlanetaryHourCard: React.FC<PlanetaryHourCardProps> = ({ planetaryHour, to
                     {new Date(today + "T" + planetaryHour.hour.Start).toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true })} - {new Date(today + "T" + planetaryHour.hour.End).toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true })}
                 </p>
                 <div>
-                    {planetaryHour.times.map((time: any) => (
+                    {planetaryHour.times.map((time: PlanetaryTimeMarker) => (
                         <p className={`text-base ${time.style}`} key={time.percent}>
                             {time.percent}: {time.time}
                         </p>

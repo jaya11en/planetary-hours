@@ -1,10 +1,7 @@
 import { type NextPage } from "next";
-import { useState } from "react";
-
-import { trpc } from "../utils/trpc";
 
 const Home: NextPage = () => {
-  return (<></>);
+  return null;
 };
 
 export default Home;
