@@ -20,9 +20,11 @@ interface LocationFormProps {
     setUseLocationCorrection: (useLocationCorrection: boolean) => void;
     referenceLongitude: number;
     setReferenceLongitude: (referenceLongitude: number) => void;
+    calibrationMode: 'seconds' | 'percent';
+    setCalibrationMode: (mode: 'seconds' | 'percent') => void;
 }
 
-const LocationForm: React.FC<LocationFormProps> = ({ latitude, setLatitude, longitude, setLongitude, coefficient, setCoefficient, offset, setOffset, useMidpointCoefficient, setUseMidpointCoefficient, useGeolocation, setUseGeolocation, isLocating, locationError, useOffset, setUseOffset, useLocationCorrection, setUseLocationCorrection, referenceLongitude, setReferenceLongitude }) => {
+const LocationForm: React.FC<LocationFormProps> = ({ latitude, setLatitude, longitude, setLongitude, coefficient, setCoefficient, offset, setOffset, useMidpointCoefficient, setUseMidpointCoefficient, useGeolocation, setUseGeolocation, isLocating, locationError, useOffset, setUseOffset, useLocationCorrection, setUseLocationCorrection, referenceLongitude, setReferenceLongitude, calibrationMode, setCalibrationMode }) => {
     return (
         <div className="bg-gray-800 p-4 rounded-lg shadow-lg mb-4">
             <form className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -74,16 +76,29 @@ const LocationForm: React.FC<LocationFormProps> = ({ latitude, setLatitude, long
                     <label className="font-medium text-sm">Use Location Correction</label>
                 </div>
                 {useLocationCorrection && (
-                    <div>
-                        <label className="block text-xs font-medium mb-1">Reference Longitude (baseline)</label>
-                        <input
-                            type="number"
-                            value={referenceLongitude}
-                            onChange={(e) => setReferenceLongitude(Number(e.target.value))}
-                            className="w-full bg-gray-700 border-gray-600 rounded-md shadow-sm px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500"
-                            step="0.000001"
-                        />
-                    </div>
+                    <>
+                        <div>
+                            <label className="block text-xs font-medium mb-1">Reference Longitude (baseline)</label>
+                            <input
+                                type="number"
+                                value={referenceLongitude}
+                                onChange={(e) => setReferenceLongitude(Number(e.target.value))}
+                                className="w-full bg-gray-700 border-gray-600 rounded-md shadow-sm px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500"
+                                step="0.000001"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-medium mb-1">Calibration mode</label>
+                            <select
+                                value={calibrationMode}
+                                onChange={(e) => setCalibrationMode(e.target.value as 'seconds' | 'percent')}
+                                className="w-full bg-gray-700 border-gray-600 rounded-md shadow-sm px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500"
+                            >
+                                <option value="seconds">Constant seconds (recommended)</option>
+                                <option value="percent">Percent-of-hour (legacy)</option>
+                            </select>
+                        </div>
+                    </>
                 )}
 
                 {/* Line break to start Midpoint row */}
@@ -95,10 +110,10 @@ const LocationForm: React.FC<LocationFormProps> = ({ latitude, setLatitude, long
                         onChange={(e) => setUseMidpointCoefficient(e.target.checked)}
                         className="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded"
                     />
-                    <label className="font-medium text-sm">Use Midpoint Coefficient</label>
+                    <label className="font-medium text-sm">Offset from midpoint</label>
                 </div>
                 <div>
-                    <label className="block text-xs font-medium mb-1">Coefficient</label>
+                    <label className="block text-xs font-medium mb-1">Target offset (%)</label>
                     <div className="relative">
                         <input
                             type="number"
@@ -122,11 +137,11 @@ const LocationForm: React.FC<LocationFormProps> = ({ latitude, setLatitude, long
                         onChange={(e) => setUseOffset(e.target.checked)}
                         className="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded"
                     />
-                    <label className="font-medium text-sm">Use Offset</label>
+                    <label className="font-medium text-sm">Use global hour % shift</label>
                 </div>
                 {useOffset ? (
                     <div>
-                        <label className="block text-xs font-medium mb-1">Offset</label>
+                        <label className="block text-xs font-medium mb-1">Global hour % shift</label>
                         <input
                             type="number"
                             value={offset}

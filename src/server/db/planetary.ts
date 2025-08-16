@@ -1,9 +1,6 @@
 import axios from 'axios';
 
 const url = 'http://www.planetaryhoursapi.com/api/';
-const todayDateOffset = new Date().getTimezoneOffset() * 60000;
-const todayDate = new Date();
-const today = (new Date(Date.now() - todayDateOffset)).toISOString().split('T')[0];
 
 // Compute a constant time shift (seconds) based on longitude difference only
 function getLocationShiftSeconds(currentLongitude: number, referenceLongitude: number): number {
@@ -21,11 +18,26 @@ export async function getPlanetaryHours(
     useOffset: boolean = false,
     useLocationCorrection: boolean = true,
     referenceLongitude: number = -98.6591473,
+    calibrationMode: 'seconds' | 'percent' = 'seconds',
 ) {
-    const locationShiftSeconds = useLocationCorrection ? getLocationShiftSeconds(long, referenceLongitude) : 0;
+    // Compute date-string and now at request time (not module load)
+    const now = new Date();
+    const todayDateOffset = now.getTimezoneOffset() * 60000;
+    const today = (new Date(Date.now() - todayDateOffset)).toISOString().split('T')[0] as string;
+
+    const locationShiftSeconds = useLocationCorrection && calibrationMode === 'seconds'
+        ? getLocationShiftSeconds(long, referenceLongitude)
+        : 0;
+    // Percent-of-hour delta derived from longitude difference (legacy behavior)
+    // 4 minutes per degree => 240 seconds; 240 / 3600 hours = 0.066666... hours = 6.6666% of an hour per degree
+    const percentDelta = useLocationCorrection && calibrationMode === 'percent'
+        ? (long - referenceLongitude) * 6.6666666667
+        : 0;
     const planetaryHours: PlanetaryHoursResponse = await axios.get(url + today + '/' + lat + ',' + long).then(r => r.data);
 
     const solarHours = getTimes(
+        today,
+        now,
         Object.keys(planetaryHours.Response.SolarHours),
         Object.values(planetaryHours.Response.SolarHours),
         true,
@@ -35,8 +47,12 @@ export async function getPlanetaryHours(
         offset,
         useOffset,
         locationShiftSeconds,
+        calibrationMode,
+        percentDelta,
     );
     const lunarHours = getTimes(
+        today,
+        now,
         Object.keys(planetaryHours.Response.LunarHours),
         Object.values(planetaryHours.Response.LunarHours),
         false,
@@ -46,12 +62,17 @@ export async function getPlanetaryHours(
         offset,
         useOffset,
         locationShiftSeconds,
+        calibrationMode,
+        percentDelta,
     );
 
     return solarHours.concat(lunarHours);
 }
 
 export async function calculatePercentage(time: string, isDay: boolean, lat: number = 29.435420, long: number = -98.660530) {
+    const now = new Date();
+    const todayDateOffset = now.getTimezoneOffset() * 60000;
+    const today = (new Date(Date.now() - todayDateOffset)).toISOString().split('T')[0];
     const planetaryHours: PlanetaryHoursResponse = await axios.get(url + today + '/' + lat + ',' + long).then(r => r.data);
 
     const timeDate = new Date(today + "T" + time);
@@ -79,6 +100,8 @@ export async function calculatePercentage(time: string, isDay: boolean, lat: num
 }
 
 function getTimes(
+    today: string,
+    now: Date,
     names: string[],
     hours: Hour[],
     isDay: boolean,
@@ -88,6 +111,8 @@ function getTimes(
     offset: number = 1.5,
     useOffset: boolean = false,
     locationShiftSeconds: number = 0,
+    calibrationMode: 'seconds' | 'percent' = 'seconds',
+    percentDelta: number = 0,
 ) {
     for (let i = 0; i < hours.length; i++) {
         if (hours[i] && names[i]) {
@@ -99,7 +124,7 @@ function getTimes(
         if (!isDay && timeDate.getTime() <= new Date(today + "T" + nextSunrise).getTime()) {
             timeDate.setDate(timeDate.getDate() + 1);
         }
-        return (timeDate > todayDate);
+        return (timeDate > now);
     })
 
         return times.map((time: Hour) => {
@@ -129,6 +154,8 @@ function getTimes(
             coefficient,
             useMidpointCoefficient,
             locationShiftSeconds,
+            calibrationMode,
+            percentDelta,
         );
         return {
             hour: adjustedTime, times: [...timesIntoSevenths]
@@ -143,6 +170,8 @@ function getTimesBySevenths(
     coefficient: number,
     useMidpointCoefficient: boolean = false,
     locationShiftSeconds: number = 0,
+    calibrationMode: 'seconds' | 'percent' = 'seconds',
+    percentDelta: number = 0,
 ) {
     const startDate = new Date(date + "T" + start);
     const endDate = new Date(date + "T" + end);
@@ -159,16 +188,16 @@ function getTimesBySevenths(
 
         const style = `text-white`;
         // Canonical start-of-seventh markers (no calibration shift)
-        pushPercentages(dateBegin, time, i, 1/7, times, style + ' text-right', false, locationShiftSeconds);
+        pushPercentages(dateBegin, time, i, 1/7, times, style + ' text-right', false, locationShiftSeconds, calibrationMode, percentDelta);
         if (!useMidpointCoefficient) {
             // User target relative to start-of-seventh (apply calibration shift)
-            pushPercentages(dateCoefficient, time, i, 1/7 - coefficient/100, times, style + ' italic', true, locationShiftSeconds);  
+            pushPercentages(dateCoefficient, time, i, 1/7 - coefficient/100, times, style + ' italic', true, locationShiftSeconds, calibrationMode, percentDelta);  
                 }
         // Canonical midpoint of seventh (no calibration shift)
-        pushPercentages(dateMiddle, time, i, 1/7/2, times, style + ' font-bold', false, locationShiftSeconds);
+        pushPercentages(dateMiddle, time, i, 1/7/2, times, style + ' font-bold', false, locationShiftSeconds, calibrationMode, percentDelta);
         if (useMidpointCoefficient) {
             // User target relative to midpoint-of-seventh (apply calibration shift)
-            pushPercentages(dateCoefficient, time, i, 1/7/2 - coefficient/100, times, style + ' italic', true, locationShiftSeconds);
+            pushPercentages(dateCoefficient, time, i, 1/7/2 - coefficient/100, times, style + ' italic', true, locationShiftSeconds, calibrationMode, percentDelta);
                   
         }
     
@@ -186,12 +215,20 @@ function pushPercentages(
     style: string,
     applyLocationShift: boolean = false,
     locationShiftSeconds: number = 0,
+    calibrationMode: 'seconds' | 'percent' = 'seconds',
+    percentDelta: number = 0,
 ) {
     // Compute base timestamp for the percentage marker
     date.setSeconds(date.getSeconds() + (time * (i / 7 - coefficient )));
     // Apply constant time shift only to user target lines
-    if (applyLocationShift && locationShiftSeconds !== 0) {
-        date.setSeconds(date.getSeconds() + locationShiftSeconds);
+    if (applyLocationShift) {
+        if (calibrationMode === 'seconds' && locationShiftSeconds !== 0) {
+            date.setSeconds(date.getSeconds() + locationShiftSeconds);
+        } else if (calibrationMode === 'percent' && percentDelta !== 0) {
+            // Apply a percent-of-hour delta (legacy style): shift marker earlier/later by a fixed percent
+            const percentOffset = percentDelta / 100; // convert to fraction
+            date.setSeconds(date.getSeconds() - (time * percentOffset));
+        }
     }
     const timeString = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric', second: 'numeric', hour12: true });
 
