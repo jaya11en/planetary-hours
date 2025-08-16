@@ -13,7 +13,6 @@ const PlanetaryHours: NextPage = () => {
     const [useOffset, setUseOffset] = useState<boolean>(false);
     const [useLocationCorrection, setUseLocationCorrection] = useState<boolean>(true);
     const [referenceLongitude, setReferenceLongitude] = useState<number>(-98.6591473);
-    const [referenceLatitude, setReferenceLatitude] = useState<number>(29.4343455);
     const [calibrationMode, setCalibrationMode] = useState<'seconds' | 'percent'>('seconds');
     const [locationError, setLocationError] = useState<string>("");
     const [useMidpointCoefficient, setUseMidpointCoefficient] = useState<boolean>(false);
@@ -57,7 +56,6 @@ const PlanetaryHours: NextPage = () => {
         useOffset: useOffset,
         useLocationCorrection: useLocationCorrection,
         referenceLongitude: referenceLongitude,
-        referenceLatitude: referenceLatitude,
         calibrationMode: calibrationMode,
     });
 
@@ -97,8 +95,6 @@ const PlanetaryHours: NextPage = () => {
                     setUseLocationCorrection={setUseLocationCorrection}
                     referenceLongitude={referenceLongitude}
                     setReferenceLongitude={setReferenceLongitude}
-                    referenceLatitude={referenceLatitude}
-                    setReferenceLatitude={setReferenceLatitude}
                     calibrationMode={calibrationMode}
                     setCalibrationMode={setCalibrationMode}
                 />
