@@ -12,7 +12,6 @@ export const planetaryRouter = router({
             useOffset: z.boolean().optional().default(true),
             useLocationCorrection: z.boolean().optional().default(true),
             referenceLongitude: z.number().optional().default(-98.6591473),
-            calibrationMode: z.enum(['seconds', 'percent']).optional().default('seconds'),
         }))
         .query(async ({ input }) => {
             return getPlanetaryHours(
@@ -24,7 +23,6 @@ export const planetaryRouter = router({
                 input.useOffset,
                 input.useLocationCorrection,
                 input.referenceLongitude,
-                input.calibrationMode,
             );
         }),
     getPercentage: publicProcedure

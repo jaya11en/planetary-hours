@@ -13,7 +13,6 @@ const PlanetaryHours: NextPage = () => {
     const [useOffset, setUseOffset] = useState<boolean>(false);
     const [useLocationCorrection, setUseLocationCorrection] = useState<boolean>(true);
     const [referenceLongitude, setReferenceLongitude] = useState<number>(-98.6591473);
-    const [calibrationMode, setCalibrationMode] = useState<'seconds' | 'percent'>('seconds');
     const [locationError, setLocationError] = useState<string>("");
     const [useMidpointCoefficient, setUseMidpointCoefficient] = useState<boolean>(false);
     const [useGeolocation, setUseGeolocation] = useState<boolean>(true);
@@ -56,7 +55,6 @@ const PlanetaryHours: NextPage = () => {
         useOffset: useOffset,
         useLocationCorrection: useLocationCorrection,
         referenceLongitude: referenceLongitude,
-        calibrationMode: calibrationMode,
     });
 
     const todayDateOffset = new Date().getTimezoneOffset() * 60000;
@@ -95,8 +93,6 @@ const PlanetaryHours: NextPage = () => {
                     setUseLocationCorrection={setUseLocationCorrection}
                     referenceLongitude={referenceLongitude}
                     setReferenceLongitude={setReferenceLongitude}
-                    calibrationMode={calibrationMode}
-                    setCalibrationMode={setCalibrationMode}
                 />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
