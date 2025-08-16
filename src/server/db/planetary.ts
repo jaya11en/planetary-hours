@@ -9,6 +9,24 @@ function getLocationShiftSeconds(currentLongitude: number, referenceLongitude: n
     return shiftMinutes * 60; // seconds
 }
 
+// Legacy percent-based calibration from prior chat:
+// percent offset = -((longDiff * 4 + latDiff * 0.5) minutes / 60) * 100
+// Where longDiff and latDiff are differences from the reference (baseline)
+function getLegacyPercentOffset(
+    currentLatitude: number,
+    currentLongitude: number,
+    referenceLatitude: number,
+    referenceLongitude: number,
+): number {
+    const longDiffDegrees = currentLongitude - referenceLongitude; // east is positive
+    const latDiffDegrees = currentLatitude - referenceLatitude; // north is positive
+    const solarTimeDiffMinutes = longDiffDegrees * 4; // 4 minutes per degree longitude
+    const atmosphericCorrectionMinutes = latDiffDegrees * 0.5; // rough atmospheric proxy from chat
+    const totalMinutesDiff = solarTimeDiffMinutes + atmosphericCorrectionMinutes;
+    const percentOfHour = (totalMinutesDiff / 60) * 100;
+    return -percentOfHour; // negative because we correct backwards per chat
+}
+
 export async function getPlanetaryHours(
     coefficient: number,
     lat: number,
@@ -18,6 +36,7 @@ export async function getPlanetaryHours(
     useOffset: boolean = false,
     useLocationCorrection: boolean = true,
     referenceLongitude: number = -98.6591473,
+    referenceLatitude: number = 29.4343455,
     calibrationMode: 'seconds' | 'percent' = 'seconds',
 ) {
     // Compute date-string and now at request time (not module load)
@@ -28,10 +47,9 @@ export async function getPlanetaryHours(
     const locationShiftSeconds = useLocationCorrection && calibrationMode === 'seconds'
         ? getLocationShiftSeconds(long, referenceLongitude)
         : 0;
-    // Percent-of-hour delta derived from longitude difference (legacy behavior)
-    // 4 minutes per degree => 240 seconds; 240 / 3600 hours = 0.066666... hours = 6.6666% of an hour per degree
+    // Percent-of-hour delta derived from both longitude and latitude differences (legacy chat behavior)
     const percentDelta = useLocationCorrection && calibrationMode === 'percent'
-        ? (long - referenceLongitude) * 6.6666666667
+        ? getLegacyPercentOffset(lat, long, referenceLatitude, referenceLongitude)
         : 0;
     const planetaryHours: PlanetaryHoursResponse = await axios.get(url + today + '/' + lat + ',' + long).then(r => r.data);
 

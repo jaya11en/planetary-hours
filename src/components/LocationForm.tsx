@@ -20,11 +20,13 @@ interface LocationFormProps {
     setUseLocationCorrection: (useLocationCorrection: boolean) => void;
     referenceLongitude: number;
     setReferenceLongitude: (referenceLongitude: number) => void;
+    referenceLatitude: number;
+    setReferenceLatitude: (referenceLatitude: number) => void;
     calibrationMode: 'seconds' | 'percent';
     setCalibrationMode: (mode: 'seconds' | 'percent') => void;
 }
 
-const LocationForm: React.FC<LocationFormProps> = ({ latitude, setLatitude, longitude, setLongitude, coefficient, setCoefficient, offset, setOffset, useMidpointCoefficient, setUseMidpointCoefficient, useGeolocation, setUseGeolocation, isLocating, locationError, useOffset, setUseOffset, useLocationCorrection, setUseLocationCorrection, referenceLongitude, setReferenceLongitude, calibrationMode, setCalibrationMode }) => {
+const LocationForm: React.FC<LocationFormProps> = ({ latitude, setLatitude, longitude, setLongitude, coefficient, setCoefficient, offset, setOffset, useMidpointCoefficient, setUseMidpointCoefficient, useGeolocation, setUseGeolocation, isLocating, locationError, useOffset, setUseOffset, useLocationCorrection, setUseLocationCorrection, referenceLongitude, setReferenceLongitude, referenceLatitude, setReferenceLatitude, calibrationMode, setCalibrationMode }) => {
     return (
         <div className="bg-gray-800 p-4 rounded-lg shadow-lg mb-4">
             <form className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -77,6 +79,16 @@ const LocationForm: React.FC<LocationFormProps> = ({ latitude, setLatitude, long
                 </div>
                 {useLocationCorrection && (
                     <>
+                        <div>
+                            <label className="block text-xs font-medium mb-1">Reference Latitude (baseline)</label>
+                            <input
+                                type="number"
+                                value={referenceLatitude}
+                                onChange={(e) => setReferenceLatitude(Number(e.target.value))}
+                                className="w-full bg-gray-700 border-gray-600 rounded-md shadow-sm px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500"
+                                step="0.000001"
+                            />
+                        </div>
                         <div>
                             <label className="block text-xs font-medium mb-1">Reference Longitude (baseline)</label>
                             <input
