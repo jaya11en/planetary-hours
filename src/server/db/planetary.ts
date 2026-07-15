@@ -1,6 +1,14 @@
 /* eslint-disable @typescript-eslint/no-unused-vars -- parked scaffolding for the location-shift calibration (kept intentionally) */
 import axios from 'axios';
 
+// Vercel's serverless runtime is UTC and `TZ` is a reserved env var there, so we
+// pin the process timezone to keep planetary-hour times in the reference location's
+// local (Central) time. This only sets the runtime timezone — no calculation logic
+// changes; it makes the deployed server behave like a local Central-time machine.
+if (!process.env.TZ) {
+    process.env.TZ = 'America/Chicago';
+}
+
 const url = 'http://www.planetaryhoursapi.com/api/';
 
 // Compute a constant time shift (seconds) based on longitude difference only
