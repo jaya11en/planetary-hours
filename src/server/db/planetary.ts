@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars -- parked scaffolding for the location-shift calibration (kept intentionally) */
 import axios from 'axios';
 
 const url = 'http://www.planetaryhoursapi.com/api/';

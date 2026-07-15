@@ -1,7 +1,15 @@
-import { type NextPage } from "next";
+import { type GetServerSideProps, type NextPage } from "next";
 
-const Home: NextPage = () => {
-  return null;
+// The app lives at /planetaryHours; send the root there.
+export const getServerSideProps: GetServerSideProps = async () => {
+  return {
+    redirect: {
+      destination: "/planetaryHours",
+      permanent: false,
+    },
+  };
 };
+
+const Home: NextPage = () => null;
 
 export default Home;
