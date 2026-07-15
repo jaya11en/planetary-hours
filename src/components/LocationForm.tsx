@@ -167,14 +167,12 @@ const LocationForm: React.FC<LocationFormProps> = ({
     return (
         <div className="glass relative z-30 mb-8 rounded-2xl">
             {/* Always-visible: the calibration values changed most often */}
-            <div className="px-5 py-5">
-                <SectionLabel>Calibration</SectionLabel>
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-3">
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                     <Toggle
                         checked={useMidpointCoefficient}
                         onChange={setUseMidpointCoefficient}
                         label="Offset from midpoint"
-                        hint="Anchor target to the seventh's midpoint"
                     />
                     <div className="flex items-center gap-2">
                         <label className="whitespace-nowrap text-xs font-medium text-gray-400">
@@ -193,23 +191,14 @@ const LocationForm: React.FC<LocationFormProps> = ({
                 <button
                     type="button"
                     onClick={() => setOpen((v) => !v)}
-                    className="mt-4 flex w-full items-center justify-between gap-4 rounded-lg border border-white/10 bg-black/20 px-4 py-3 text-left transition hover:bg-white/5"
+                    className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-1.5 text-left text-gray-300 transition hover:bg-white/5"
+                    aria-expanded={open}
                 >
-                    <span className="flex items-center gap-3">
-                        <span className="text-base" aria-hidden>
-                            ⚙︎
-                        </span>
-                        <span>
-                            <span className="block text-sm font-semibold text-gray-100">
-                                Location &amp; more settings
-                            </span>
-                            <span className="block text-xs text-gray-400">
-                                {isLocating
-                                    ? 'Getting your location…'
-                                    : `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`}
-                                {useGeolocation ? ' · auto' : ' · manual'}
-                            </span>
-                        </span>
+                    <span aria-hidden>⚙︎</span>
+                    <span className="hidden text-xs text-gray-400 sm:block">
+                        {isLocating
+                            ? 'Locating…'
+                            : `${latitude.toFixed(3)}, ${longitude.toFixed(3)}${useGeolocation ? ' · auto' : ' · manual'}`}
                     </span>
                     <span
                         className={`text-gray-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}

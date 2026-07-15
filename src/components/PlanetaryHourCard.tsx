@@ -146,7 +146,7 @@ const PlanetaryHourCard: React.FC<PlanetaryHourCardProps> = ({ planetaryHour, to
                         ⌄
                     </span>
                 </summary>
-                <div className="max-h-72 overflow-y-auto px-5 pb-4">
+                <div className="px-5 pb-4">
                     {/* Single-line "percent: time" markers — `time.style` keeps the
                         original left/right alignment (seventh-start markers are text-right). */}
                     <div className="space-y-0.5 font-mono text-xs tabular-nums">
