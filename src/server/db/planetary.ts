@@ -1,12 +1,12 @@
 /* eslint-disable @typescript-eslint/no-unused-vars -- parked scaffolding for the location-shift calibration (kept intentionally) */
 import axios from 'axios';
 
-// Vercel's serverless runtime sets TZ=UTC (and blocks overriding it via env vars),
-// which shifted planetary-hour times ~5h. Force the process timezone to the
-// reference location's local (Central) time so Date operations resolve correctly.
-// Set unconditionally: Vercel already sets TZ, so a guarded assignment would no-op.
-// This only changes the runtime timezone — no calculation logic changes.
-process.env.TZ = 'America/Chicago';
+// Pin the process to UTC so Date parsing/formatting is deterministic regardless of
+// host timezone (Vercel is UTC; a dev machine may not be). The API returns every
+// time in the requested location's local wall clock, so we derive "now"/"today" in
+// that location's local time (via the API's per-location UTC offset) and let all
+// UTC-based Date math render the correct wall-clock values. Works in any timezone.
+process.env.TZ = 'UTC';
 
 const url = 'http://www.planetaryhoursapi.com/api/';
 
@@ -37,20 +37,32 @@ export async function getPlanetaryHours(
     useLocationCorrection: boolean = true,
     referenceLongitude: number = -98.6591473,
 ) {
-    // Compute date-string and now at request time (not module load)
     const now = new Date();
-    const todayDateOffset = now.getTimezoneOffset() * 60000;
-    let today = (new Date(Date.now() - todayDateOffset)).toISOString().split('T')[0] as string;
 
-    // Check if we're before sunrise (in lunar hours of previous planetary day)
-    const tempData: PlanetaryHoursResponse = await axios.get(url + today + '/' + lat + ',' + long).then(r => r.data);
-    const todaySunrise = new Date(today + "T" + tempData.Response.Solar.Sunrise);
+    // Probe the API to learn this location's UTC offset (hours). The API returns
+    // times in the location's local wall clock, so we use that offset to compute
+    // "now" and "today" in local time. Seed the probe with the UTC date.
+    const seedDate = now.toISOString().split('T')[0] as string;
+    const probe: PlanetaryHoursResponse = await axios.get(url + seedDate + '/' + lat + ',' + long).then(r => r.data);
+    const offsetHours = Number(probe.Response.General['TimezoneOffset(secs)']) || 0;
+    const offsetMs = offsetHours * 3600 * 1000;
 
-    // If current time is before today's sunrise, we're in the previous planetary day
-    if (now < todaySunrise) {
-        const yesterday = new Date(now);
-        yesterday.setDate(yesterday.getDate() - 1);
-        today = (new Date(yesterday.getTime() - todayDateOffset)).toISOString().split('T')[0] as string;
+    // Location's local "now" and date, represented in the UTC-pinned process. Reading
+    // nowLocal's UTC fields (or formatting in UTC) yields the location's wall clock.
+    const nowLocal = new Date(now.getTime() + offsetMs);
+    let today = nowLocal.toISOString().split('T')[0] as string;
+
+    // Fetch planetary data for the location's local date (reuse the probe if same).
+    let planetaryHours: PlanetaryHoursResponse =
+        today === seedDate ? probe : await axios.get(url + today + '/' + lat + ',' + long).then(r => r.data);
+
+    // If we're before local sunrise, we're still in the previous planetary day.
+    const todaySunrise = new Date(today + "T" + planetaryHours.Response.Solar.Sunrise);
+    if (nowLocal < todaySunrise) {
+        const yesterday = new Date(nowLocal);
+        yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+        today = yesterday.toISOString().split('T')[0] as string;
+        planetaryHours = await axios.get(url + today + '/' + lat + ',' + long).then(r => r.data);
     }
 
     // Seconds-based shift no longer used for chat-legacy behavior
@@ -59,11 +71,10 @@ export async function getPlanetaryHours(
     const percentDelta = useLocationCorrection
         ? getLongitudePercentOffset(long, referenceLongitude)
         : 0;
-    const planetaryHours: PlanetaryHoursResponse = await axios.get(url + today + '/' + lat + ',' + long).then(r => r.data);
 
     const solarHours = getTimes(
         today,
-        now,
+        nowLocal,
         Object.keys(planetaryHours.Response.SolarHours),
         Object.values(planetaryHours.Response.SolarHours),
         true,
@@ -77,7 +88,7 @@ export async function getPlanetaryHours(
     );
     const lunarHours = getTimes(
         today,
-        now,
+        nowLocal,
         Object.keys(planetaryHours.Response.LunarHours),
         Object.values(planetaryHours.Response.LunarHours),
         false,
@@ -280,7 +291,9 @@ interface GeneralInfo {
     PlanetaryRuler: string,
     Latitude: string,
     Longitude: string,
-    TimezoneOffset: number
+    // API label says "(secs)" but the value is the location's UTC offset in HOURS
+    // (e.g. -5 for CDT, 9 for JST).
+    "TimezoneOffset(secs)": number
 }
 
 interface SolarInfo {
