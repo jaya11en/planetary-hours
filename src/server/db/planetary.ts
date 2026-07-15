@@ -16,7 +16,7 @@ function getLongitudePercentOffset(
     referenceLongitude: number,
 ): number {
     const longDiffDegrees = currentLongitude - referenceLongitude; // east is positive
-    return -(longDiffDegrees * 6.6666666667);
+    return -(longDiffDegrees * 10.9);
 }
 
 export async function getPlanetaryHours(
@@ -32,7 +32,18 @@ export async function getPlanetaryHours(
     // Compute date-string and now at request time (not module load)
     const now = new Date();
     const todayDateOffset = now.getTimezoneOffset() * 60000;
-    const today = (new Date(Date.now() - todayDateOffset)).toISOString().split('T')[0] as string;
+    let today = (new Date(Date.now() - todayDateOffset)).toISOString().split('T')[0] as string;
+
+    // Check if we're before sunrise (in lunar hours of previous planetary day)
+    const tempData: PlanetaryHoursResponse = await axios.get(url + today + '/' + lat + ',' + long).then(r => r.data);
+    const todaySunrise = new Date(today + "T" + tempData.Response.Solar.Sunrise);
+
+    // If current time is before today's sunrise, we're in the previous planetary day
+    if (now < todaySunrise) {
+        const yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+        today = (new Date(yesterday.getTime() - todayDateOffset)).toISOString().split('T')[0] as string;
+    }
 
     // Seconds-based shift no longer used for chat-legacy behavior
     const locationShiftSeconds = 0;
@@ -177,6 +188,11 @@ function getTimesBySevenths(
 ) {
     const startDate = new Date(date + "T" + start);
     const endDate = new Date(date + "T" + end);
+
+    // Handle midnight crossing: if end time is earlier than start time, add one day to end
+    if (endDate <= startDate) {
+        endDate.setDate(endDate.getDate() + 1);
+    }
 
     const time = (endDate.getTime() / 1000) - (startDate.getTime() / 1000);
 
