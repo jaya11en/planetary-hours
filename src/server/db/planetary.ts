@@ -24,7 +24,7 @@ function getLongitudePercentOffset(
     referenceLongitude: number,
 ): number {
     const longDiffDegrees = currentLongitude - referenceLongitude; // east is positive
-    return -(longDiffDegrees * 22.1);
+    return -(longDiffDegrees * 22.2);
 }
 
 export async function getPlanetaryHours(
